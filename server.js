@@ -16,7 +16,7 @@ app.post('/', async (req, res) => {
 
     const fetchLink = await fetch(data.link)
     const buffer = await fetchLink.arrayBuffer()
-    const decoder = new TextDecoder('iso-8859-1')
+    const decoder = new TextDecoder('utf-8')
     const html = decoder.decode(buffer)
     const article = await extractFromHtml(html)
 
