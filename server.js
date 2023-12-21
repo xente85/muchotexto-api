@@ -1,8 +1,9 @@
-import { extract } from '@extractus/article-extractor'
+import { extractFromHtml } from '@extractus/article-extractor'
 import express from 'express'
 
 const app = express()
-const port = 3000
+const port = process.env.PORT || 3000
+const host = process.env.IP
 
 app.use(express.json())
 
@@ -11,13 +12,20 @@ app.post('/', async (req, res) => {
   const data = req.body;
   
   try {
-    const article = await extract(data.link)
+    // const article = await extract(data.link)
+
+    const fetchLink = await fetch(data.link)
+    const buffer = await fetchLink.arrayBuffer()
+    const decoder = new TextDecoder('iso-8859-1')
+    const html = decoder.decode(buffer)
+    const article = await extractFromHtml(html)
+
     res.json(article)
   } catch (error) {
     res.json({ error })
   }
 })
 
-app.listen(port, () => {
+app.listen(port, host, () => {
   console.log(`Example app listening on port ${port}`)
 })
