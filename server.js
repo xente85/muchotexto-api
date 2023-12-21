@@ -12,8 +12,6 @@ app.post('/', async (req, res) => {
   const data = req.body;
   
   try {
-    // const article = await extract(data.link)
-
     const fetchLink = await fetch(data.link)
     const buffer = await fetchLink.arrayBuffer()
     const decoder = new TextDecoder('utf-8')
