@@ -10,7 +10,7 @@ echo "Building Docker image..."
 docker build -t $IMAGE_NAME .
 
 # Verificar si hay un contenedor en ejecución con el mismo nombre y eliminarlo
-if [ $(docker ps -q -f name=$CONTAINER_NAME) ]; then
+if [ $(docker ps --all -q -f name=$CONTAINER_NAME) ]; then
     echo "Stopping and removing existing container..."
     docker stop $CONTAINER_NAME
     docker rm $CONTAINER_NAME

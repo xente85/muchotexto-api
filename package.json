@@ -18,7 +18,10 @@
   },
   "homepage": "https://github.com/xente85/article-extractor-api#readme",
   "dependencies": {
-    "@extractus/article-extractor": "^8.0.10",
-    "express": "^4.19.2"
+    "@mozilla/readability": "^0.5.0",
+    "axios": "^1.7.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsdom": "^24.1.1"
   }
 }
