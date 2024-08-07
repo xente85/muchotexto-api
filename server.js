@@ -16,10 +16,12 @@ app.post('/', async (req, res) => {
     const buffer = await fetchLink.arrayBuffer()
     const decoder = new TextDecoder('utf-8')
     const html = decoder.decode(buffer)
+    console.log('html', html)
     const article = await extractFromHtml(html)
-
+    console.log('article', article)
     res.json(article)
   } catch (error) {
+    console.error(error)
     res.json({ error })
   }
 })
