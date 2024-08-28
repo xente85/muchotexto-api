@@ -4,7 +4,7 @@ import { requestIA } from './ai.js';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 
 const app = express()
 const port = process.env.PORT || 3000
@@ -41,8 +41,20 @@ app.post('/link', async (req, res) => {
       }
     });
 
-    // Reemplazar el contenido del artículo con el HTML limpio
-    article.content = $.html();
+    // Eliminar todas las etiquetas <img>
+    $('img').remove();
+
+    // Eliminar etiquetas no esenciales (html, head, body, divs sin contenido)
+    $('[class], [id], [rel], [alt], [srcset], [href]').removeAttr('class id rel alt srcset href');
+
+    // Eliminar etiquetas vacías
+    $('*:empty').remove();
+
+    // Comprimir el HTML eliminando saltos de línea y espacios innecesarios
+    const cleanedHTML = $.html().replace(/\n/g, '').replace(/\s\s+/g, ' ').trim();
+
+    // Reemplazar el contenido del artículo con el HTML limpio y comprimido
+    article.content = cleanedHTML;
 
     // Devolver el artículo limpio como respuesta
     res.json(article);
