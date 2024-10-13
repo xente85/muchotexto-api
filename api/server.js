@@ -69,10 +69,10 @@ app.post('/prompt', async (req, res) => {
   const data = req.body;
   
   try {
-    const { prompt } = data;
-    const response = await requestIA(prompt);
-    console.log('response', response);
-    res.json({ response })
+    const { prompt, idChat } = data;
+    const { chatHistory } = await requestIA(idChat, prompt);
+    console.log('response', { idChat, chatHistory });
+    res.json({ chatHistory });
   } catch (error) {
     console.error(error)
     res.json({ error })
