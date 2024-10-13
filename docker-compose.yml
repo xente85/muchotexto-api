@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  express-app:
+    build:
+      context: api/.
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+  
+  #ai-service:
+  #  build: ia/.
+  #  ports:
+  #    - "5000:5000"  # Mapea el puerto 5000 del contenedor al puerto 5000 de tu máquina

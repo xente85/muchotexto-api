@@ -79,6 +79,38 @@ app.post('/prompt', async (req, res) => {
   }
 })
 
+// Endpoint que hace una solicitud a Ollama
+app.post('/summarize', async (req, res) => {
+  const userInput = req.body.prompt; // Obtén el input del usuario desde el cuerpo de la solicitud
+
+  try {
+      const response = await axios.post('http://localhost:5000/summarize', {
+          text: userInput,
+      });
+
+      res.json(response.data); // Devuelve la respuesta de Ollama al cliente
+  } catch (error) {
+      console.error('Error al comunicarse con Ollama:', error);
+      res.status(500).json({ error: 'Error al comunicarse con Ollama' });
+  }
+});
+
+// Endpoint que hace una solicitud a Ollama
+app.post('/translate', async (req, res) => {
+  const userInput = req.body.prompt; // Obtén el input del usuario desde el cuerpo de la solicitud
+
+  try {
+      const response = await axios.post('http://localhost:5000/translate', {
+          text: userInput,
+      });
+
+      res.json(response.data); // Devuelve la respuesta de Ollama al cliente
+  } catch (error) {
+      console.error('Error al comunicarse con Ollama:', error);
+      res.status(500).json({ error: 'Error al comunicarse con Ollama' });
+  }
+});
+
 app.listen(port, host, () => {
   console.log(`Example app listening on port ${port}`)
 })
