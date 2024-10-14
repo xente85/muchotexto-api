@@ -10,6 +10,8 @@ const app = express()
 const port = process.env.PORT || 3000
 const host = process.env.IP
 
+const articlesCached = {};
+
 app.use(express.json())
 
 app.post('/link', async (req, res) => {
@@ -18,6 +20,11 @@ app.post('/link', async (req, res) => {
   
   try {
     const { link } = data;
+
+    if (articlesCached[link]) {
+      console.log('cached', link);
+      return res.json(articlesCached[link]);
+    }
 
     const response = await axios.get(link);
     const dom = new JSDOM(response.data);
@@ -55,6 +62,9 @@ app.post('/link', async (req, res) => {
 
     // Reemplazar el contenido del artículo con el HTML limpio y comprimido
     article.content = cleanedHTML;
+
+    // Cacheamos la respuesta
+    articlesCached[link] = article;
 
     // Devolver el artículo limpio como respuesta
     res.json(article);
