@@ -38,8 +38,6 @@ function addChat(idChat, data) {
 function getRequestCached(searchContent, idChat) {
   const chatHistory = getChatHistory();
 
-  console.log('getRequestCached', { searchContent, idChat });
-
   // Recorremos las propiedades del objeto
   for (const key in chatHistory) {
       const conversation = chatHistory[key];
