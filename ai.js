@@ -10,17 +10,15 @@ const apiKey = process.env.OPENAI_API_KEY;
 
 const test = false;
 
-const chatHistory = {};
-
 export async function requestIA(idChat, prompt) {
     const chat = addChat(idChat, { role: 'user', content: prompt });
 
-    if (test) return { chat };
+    if (test) return { chatHistory: chat };
 
     const requestCached = getRequestCached(prompt, idChat);
     if (requestCached) {
         console.log('cached', requestCached);
-        return { chat: addChat(idChat, { role: 'assistant', content: requestCached }) };
+        return { chatHistory: addChat(idChat, { role: 'assistant', content: requestCached }) };
     }
 
     try {
@@ -28,7 +26,7 @@ export async function requestIA(idChat, prompt) {
             'https://api.openai.com/v1/chat/completions',
             {
                 model: 'gpt-3.5-turbo',
-                messages: chatHistory,
+                messages: chat,
                 max_tokens: 100
             },
             {
@@ -40,7 +38,7 @@ export async function requestIA(idChat, prompt) {
         );
         const reply = response.data.choices[0].message.content;
 
-        return { chat: addChat(idChat, { role: 'assistant', content: reply }) };
+        return { chatHistory: addChat(idChat, { role: 'assistant', content: reply }) };
     } catch (error) {
         throw new Error(`Error al hacer la solicitud a ChatGPT: ${error.message}`);
     }
