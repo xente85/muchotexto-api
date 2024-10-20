@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { config } from 'dotenv';
+import { addChat, getRequestCached } from './bd.js';
 
 // Configura dotenv
 config();
@@ -12,17 +13,14 @@ const test = false;
 const chatHistory = {};
 
 export async function requestIA(idChat, prompt) {
-    const chatHistory = getChatHistory(idChat);
+    const chat = addChat(idChat, { role: 'user', content: prompt });
 
-    chatHistory.push({ role: 'user', content: prompt });
+    if (test) return { chat };
 
-    if (test) return { chatHistory };
-
-    const requestCached = getRequestCached(prompt);
+    const requestCached = getRequestCached(prompt, idChat);
     if (requestCached) {
         console.log('cached', requestCached);
-        chatHistory.push({ role: 'assistant', content: requestCached });
-        return { chatHistory };
+        return { chat: addChat(idChat, { role: 'assistant', content: requestCached }) };
     }
 
     try {
@@ -42,35 +40,8 @@ export async function requestIA(idChat, prompt) {
         );
         const reply = response.data.choices[0].message.content;
 
-        chatHistory.push({ role: 'assistant', content: reply });
-
-        return { chatHistory };
+        return { chat: addChat(idChat, { role: 'assistant', content: reply }) };
     } catch (error) {
         throw new Error(`Error al hacer la solicitud a ChatGPT: ${error.message}`);
     }
-}
-
-function getChatHistory(idChatContext) {
-    if (!chatHistory[idChatContext]) chatHistory[idChatContext] = [];
-    return chatHistory[idChatContext];
-}
-
-function getRequestCached(searchContent) {
-    // Recorremos las propiedades del objeto
-    for (const key in chatHistory) {
-        const conversation = chatHistory[key];
-
-        // Recorremos los elementos de cada conversación
-        for (let i = 0; i < conversation.length; i++) {
-            // Si encontramos el content que estamos buscando
-            if (conversation[i].content === searchContent) {
-                // Nos aseguramos de que exista un siguiente elemento y que sea 'assistant'
-                if (i + 1 < conversation.length && conversation[i + 1].role === 'assistant') {
-                    return conversation[i + 1].content;
-                }
-            }
-        }
-    }
-    // Si no encontramos coincidencias, devolvemos null
-    return null;
 }
