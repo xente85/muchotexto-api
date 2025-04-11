@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nix --extra-experimental-features nix-command --extra-experimental-features flakes develop --command npm run start"
+    "nix": "nix-shell --run 'npm run start'"
   },
   "repository": {
     "type": "git",
