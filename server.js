@@ -79,9 +79,10 @@ app.post('/prompt', async (req, res) => {
   const data = req.body;
   
   try {
+    const modelo = 'gpt-4-turbo';
     const { prompt, idChat } = data;
-    const { chatHistory } = await requestIA(idChat, prompt);
-    console.log('response', { idChat, chatHistory });
+    const { chatHistory } = await requestIA(idChat, prompt, modelo);
+    console.log('response', { idChat, chatHistory, modelo });
     res.json({ chatHistory });
   } catch (error) {
     console.error(error)

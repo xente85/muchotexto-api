@@ -10,7 +10,7 @@ const apiKey = process.env.OPENAI_API_KEY;
 
 const test = false;
 
-export async function requestIA(idChat, prompt) {
+export async function requestIA(idChat, prompt, modelo = 'gpt-3.5-turbo') {
     const chat = addChat(idChat, { role: 'user', content: prompt });
 
     if (test) return { chatHistory: chat };
@@ -25,7 +25,8 @@ export async function requestIA(idChat, prompt) {
         const response = await axios.post(
             'https://api.openai.com/v1/chat/completions',
             {
-                model: 'gpt-3.5-turbo',
+                // model: 'gpt-3.5-turbo',
+                model: modelo,
                 messages: chat,
                 max_tokens: 100
             },
