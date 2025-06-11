@@ -79,7 +79,7 @@ app.post('/prompt', async (req, res) => {
   const data = req.body;
   
   try {
-    const modelo = 'gpt-4-turbo';
+    const modelo = 'gpt-3.5-turbo';
     const { prompt, idChat } = data;
     const { chatHistory } = await requestIA(idChat, prompt, modelo);
     console.log('response', { idChat, chatHistory, modelo });
