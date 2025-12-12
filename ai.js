@@ -10,7 +10,7 @@ const apiKey = process.env.OPENAI_API_KEY;
 
 const test = false;
 
-export async function requestIA(idChat, prompt, modelo = 'gpt-3.5-turbo') {
+export async function requestIA(idChat, prompt, modelo = 'gpt-3.5-turbo', max_tokens = 500) {
     const chat = addChat(idChat, { role: 'user', content: prompt });
 
     if (test) return { chatHistory: chat };
@@ -28,7 +28,7 @@ export async function requestIA(idChat, prompt, modelo = 'gpt-3.5-turbo') {
                 // model: 'gpt-3.5-turbo',
                 model: modelo,
                 messages: chat,
-                max_tokens: 100
+                max_tokens
             },
             {
                 headers: {

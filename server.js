@@ -80,9 +80,10 @@ app.post('/prompt', async (req, res) => {
   
   try {
     const modelo = 'gpt-3.5-turbo';
+    const max_tokens = 500;
     const { prompt, idChat } = data;
-    const { chatHistory } = await requestIA(idChat, prompt, modelo);
-    console.log('response', { idChat, chatHistory, modelo });
+    const { chatHistory } = await requestIA(idChat, prompt, modelo, max_tokens);
+    console.log('response', { idChat, chatHistory, modelo, max_tokens });
     res.json({ chatHistory });
   } catch (error) {
     console.error(error)
