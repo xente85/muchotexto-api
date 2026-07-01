@@ -76,7 +76,7 @@ function publicError(error) {
 }
 
 app.post('/link', async (req, res) => {
-  console.log(req.body);
+  // console.log(req.body);
   const data = req.body;
   
   try {
@@ -91,7 +91,7 @@ app.post('/link', async (req, res) => {
     }
 
     if (articlesCached[link]) {
-      console.log('cached', link);
+      // console.log('cached', link);
       return res.json(articlesCached[link]);
     }
 
@@ -126,15 +126,16 @@ app.post('/link', async (req, res) => {
 })
 
 app.post('/prompt', async (req, res) => {
-  console.log(req.body);
+  // console.log(req.body);
   const data = req.body;
   
   try {
-    const modelo = 'gpt-3.5-turbo';
-    const max_tokens = 500;
+    const provider = process.env.AI_PROVIDER || 'deepseek';
+    const modelo = process.env.AI_MODEL;
+    const max_tokens = Number(process.env.AI_MAX_TOKENS || 500);
     const { prompt, idChat } = data;
-    const { chatHistory } = await requestIA(idChat, prompt, modelo, max_tokens);
-    console.log('response', { idChat, chatHistory, modelo, max_tokens });
+    const { chatHistory } = await requestIA(idChat, prompt, modelo, max_tokens, provider);
+    // console.log('response', { idChat, chatHistory, provider, modelo, max_tokens });
     res.json({ chatHistory });
   } catch (error) {
     console.error(error)

@@ -6,7 +6,7 @@ const fileName = 'chatHistory.json';
 function getChatHistory() {
   // Verificar si el archivo existe
   if (!existsSync(fileName)) {
-    console.log(`Creamos la bd: ${fileName}`);
+    // console.log(`Creamos la bd: ${fileName}`);
     // Si el archivo no existe, crearlo con un contenido inicial vacío
     const initialData = {}; // Estructura inicial de tu archivo JSON
     setChatHistory(initialData);
@@ -42,7 +42,7 @@ function getRequestCached(searchContent, idChat) {
   for (const key in chatHistory) {
       const conversation = chatHistory[key];
 
-      console.log('getRequestCached', { key, conversation });
+      // console.log('getRequestCached', { key, conversation });
 
       // Recorremos los elementos de cada conversación
       for (let i = 0; i < conversation.length; i++) {
