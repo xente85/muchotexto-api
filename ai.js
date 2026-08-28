@@ -36,6 +36,37 @@ function getProvider(providerName = 'deepseek') {
     return provider;
 }
 
+async function requestCompletion(provider, providerName, model, messages, max_tokens) {
+    const data = {
+        model,
+        messages,
+        max_tokens
+    };
+
+    // Los modelos DeepSeek V4 razonan por defecto. Para resúmenes y
+    // traducciones breves interesa reservar todos los tokens para la respuesta.
+    if (providerName === 'deepseek') {
+        data.thinking = { type: 'disabled' };
+    }
+
+    const response = await axios.post(
+        provider.url,
+        data,
+        {
+            headers: {
+                'Authorization': `Bearer ${provider.apiKey}`,
+                'Content-Type': 'application/json'
+            }
+        }
+    );
+    const choice = response.data?.choices?.[0];
+
+    return {
+        reply: typeof choice?.message?.content === 'string' ? choice.message.content : '',
+        finishReason: choice?.finish_reason
+    };
+}
+
 export async function requestIA(idChat, prompt, modelo, max_tokens = 500, providerName = 'deepseek') {
     const chat = addChat(idChat, { role: 'user', content: prompt });
 
@@ -53,23 +84,29 @@ export async function requestIA(idChat, prompt, modelo, max_tokens = 500, provid
     }
 
     try {
-        const response = await axios.post(
-            provider.url,
-            {
-                model,
-                messages: chat,
-                max_tokens
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${provider.apiKey}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-        const reply = response.data.choices[0].message.content;
+        let result = await requestCompletion(provider, providerName, model, chat, max_tokens);
 
-        return { chatHistory: addChat(idChat, { role: 'assistant', content: reply }) };
+        if (!result.reply.trim() || result.finishReason === 'length') {
+            const retryMaxTokens = Math.max(max_tokens * 2, 1000);
+            console.warn('Respuesta de IA vacía o truncada; reintentando', {
+                provider: providerName,
+                model,
+                finishReason: result.finishReason,
+                maxTokens: max_tokens,
+                retryMaxTokens
+            });
+            result = await requestCompletion(provider, providerName, model, chat, retryMaxTokens);
+        }
+
+        if (!result.reply.trim()) {
+            throw new Error(`El proveedor devolvió una respuesta vacía (finish_reason: ${result.finishReason || 'desconocido'})`);
+        }
+
+        if (result.finishReason === 'length') {
+            throw new Error('El proveedor agotó el límite de tokens antes de completar la respuesta');
+        }
+
+        return { chatHistory: addChat(idChat, { role: 'assistant', content: result.reply }) };
     } catch (error) {
         throw new Error(`Error al hacer la solicitud a ${providerName}/${model}: ${error.message}`);
     }
