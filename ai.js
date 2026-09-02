@@ -67,6 +67,24 @@ async function requestCompletion(provider, providerName, model, messages, max_to
     };
 }
 
+export async function requestSingleTurn(prompt, modelo, max_tokens = 500, providerName = 'deepseek') {
+    const provider = getProvider(providerName);
+    const model = modelo || provider.defaultModel;
+    const result = await requestCompletion(
+        provider,
+        providerName,
+        model,
+        [{ role: 'user', content: prompt }],
+        max_tokens
+    );
+
+    if (!result.reply.trim()) {
+        throw new Error(`El proveedor devolvió una respuesta vacía (finish_reason: ${result.finishReason || 'desconocido'})`);
+    }
+
+    return result.reply;
+}
+
 export async function requestIA(idChat, prompt, modelo, max_tokens = 500, providerName = 'deepseek') {
     const chat = addChat(idChat, { role: 'user', content: prompt });
 

@@ -1,5 +1,7 @@
 import express from 'express'
+import { randomBytes } from 'crypto';
 import { requestIA } from './ai.js';
+import { factCheckArticle } from './factCheck.js';
 
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
@@ -12,8 +14,10 @@ const host = process.env.IP
 
 const articlesCached = {};
 const AXIOS_TIMEOUT_MS = 10000;
+const factCheckJobs = new Map();
+const FACT_CHECK_JOB_TTL_MS = 10 * 60 * 1000;
 
-app.use(express.json())
+app.use(express.json({ limit: '1mb' }))
 
 function parseHttpUrl(link) {
   try {
@@ -143,6 +147,74 @@ app.post('/prompt', async (req, res) => {
       error: error instanceof Error ? error.message : 'Error desconocido al llamar a la IA.',
     })
   }
+})
+
+app.post('/fact-check', async (req, res) => {
+  const requestId = randomBytes(4).toString('hex');
+  const startedAt = Date.now();
+  console.log(`[fact-check][${requestId}] request.received`, {
+    hasIdChat: Boolean(req.body?.idChat),
+    hasArticle: Boolean(req.body?.article),
+    articleChars: req.body?.article?.content?.length || req.body?.article?.textContent?.length || 0,
+    locale: req.body?.locale || 'unknown',
+  });
+  const { idChat, article, locale } = req.body;
+  if (!idChat || !article) {
+    return res.status(400).json({ error: 'Faltan idChat o article.' });
+  }
+
+  factCheckJobs.set(requestId, { status: 'pending', createdAt: Date.now() });
+  const cleanupTimer = setTimeout(() => factCheckJobs.delete(requestId), FACT_CHECK_JOB_TTL_MS);
+  cleanupTimer.unref();
+  res.status(202).json({ jobId: requestId, status: 'pending' });
+  console.log(`[fact-check][${requestId}] request.accepted`, { status: 202 });
+
+  try {
+    const provider = process.env.AI_PROVIDER || 'deepseek';
+    const model = process.env.AI_MODEL;
+    const maxTokens = Number(process.env.FACT_CHECK_MAX_TOKENS || 1600);
+    const { chatHistory } = await factCheckArticle({
+      idChat,
+      article,
+      locale,
+      provider,
+      model,
+      maxTokens,
+      requestId,
+    });
+    factCheckJobs.set(requestId, { status: 'completed', chatHistory, createdAt: Date.now() });
+    console.log(`[fact-check][${requestId}] request.completed`, {
+      durationMs: Date.now() - startedAt,
+      status: 200,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido al verificar el artículo.';
+    factCheckJobs.set(requestId, { status: 'failed', error: message, createdAt: Date.now() });
+    console.error(`[fact-check][${requestId}] request.failed`, {
+      durationMs: Date.now() - startedAt,
+      upstreamStatus: error?.response?.status,
+      code: error?.code,
+      message,
+    });
+  }
+})
+
+app.get('/fact-check/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  const job = factCheckJobs.get(jobId);
+
+  if (!job) {
+    return res.status(404).json({ error: 'La verificación no existe o ha caducado.' });
+  }
+  if (job.status === 'pending') {
+    return res.status(202).json({ jobId, status: 'pending' });
+  }
+
+  factCheckJobs.delete(jobId);
+  if (job.status === 'failed') {
+    return res.status(502).json({ error: job.error });
+  }
+  return res.json({ chatHistory: job.chatHistory });
 })
 
 // Endpoint que hace una solicitud a Ollama

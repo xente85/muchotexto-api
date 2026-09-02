@@ -5,8 +5,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "prestart": "node check-node-version.cjs",
     "start": "node server.js",
     "nix": "nix-shell --run 'npm run start'"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "repository": {
     "type": "git",
