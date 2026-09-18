@@ -59,6 +59,15 @@ function isProtectedByAntiBot(error) {
 }
 
 function publicError(error) {
+  if (axios.isAxiosError(error) && error.response?.status === 406) {
+    return {
+      // Keep the existing code so already-installed extension versions use
+      // their browser extraction fallback without requiring an immediate reload.
+      code: 'ARTICLE_PROTECTED',
+      error: 'La web ha rechazado la descarga del artículo (406). Intenta leerlo desde el navegador.',
+    };
+  }
+
   if (isProtectedByAntiBot(error)) {
     return {
       code: 'ARTICLE_PROTECTED',
@@ -100,6 +109,7 @@ app.post('/link', async (req, res) => {
     }
 
     const response = await axios.get(url.href, {
+      headers: { Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8' },
       timeout: AXIOS_TIMEOUT_MS,
       responseType: 'text',
       maxContentLength: 5 * 1024 * 1024,
@@ -124,7 +134,10 @@ app.post('/link', async (req, res) => {
     // Devolver el artículo limpio como respuesta
     res.json(article);
   } catch (error) {
-    console.error(error)
+    console.error('[article] download.failed', {
+      status: error?.response?.status,
+      code: error?.code,
+    });
     res.json(publicError(error))
   }
 })
