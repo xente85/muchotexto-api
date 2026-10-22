@@ -116,6 +116,11 @@ app.post('/link', async (req, res) => {
     });
     const dom = new JSDOM(response.data);
     const document = dom.window.document;
+    const publishedAt =
+      document.querySelector('meta[property="article:published_time"]')?.content ||
+      document.querySelector('meta[name="date"]')?.content ||
+      document.querySelector('time[datetime]')?.getAttribute('datetime') ||
+      '';
     const reader = new Readability(document);
     const article = reader.parse();
 
@@ -127,6 +132,7 @@ app.post('/link', async (req, res) => {
 
     // Reemplazar el contenido del artículo con el HTML limpio y comprimido
     article.content = cleanArticleHTML(article.content);
+    article.publishedAt = publishedAt;
 
     // Cacheamos la respuesta
     articlesCached[link] = article;
