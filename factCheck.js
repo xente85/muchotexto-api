@@ -4,6 +4,7 @@ import { requestSingleTurn } from './ai.js';
 
 const MAX_CLAIMS = 3;
 const MAX_SOURCE_CHARS = 3500;
+const MAX_FETCH_FALLBACKS = 4;
 
 const trim = (value, max) => String(value || '').trim().slice(0, max);
 const line = (value, max = 450) => trim(value, max).replace(/[\r\n]+/g, ' ');
@@ -52,17 +53,56 @@ Titular: ${article.title}
 }
 
 async function searchClaim(query, excludedDomain) {
-    if (!process.env.TAVILY_API_KEY) throw new Error('Falta configurar TAVILY_API_KEY.');
-    const body = {
-        query, topic: 'general', search_depth: process.env.TAVILY_SEARCH_DEPTH || 'basic',
-        max_results: 8, include_answer: false, include_raw_content: 'text', include_published_date: true,
-    };
-    if (excludedDomain) body.exclude_domains = [excludedDomain];
-    const response = await axios.post('https://api.tavily.com/search', body, {
-        timeout: 20000,
-        headers: { Authorization: `Bearer ${process.env.TAVILY_API_KEY}`, 'Content-Type': 'application/json' },
+    if (!process.env.DEEPSEEK_API_KEY) throw new Error('Falta configurar DEEPSEEK_API_KEY para la búsqueda web.');
+    const requestedExcludeOperator = excludedDomain ? ` -site:${excludedDomain}` : '';
+    const excludeOperator = requestedExcludeOperator.length < 128 ? requestedExcludeOperator : '';
+    const searchTextLength = 128 - excludeOperator.length;
+    const searchText = Array.from(String(query || '').trim()).slice(0, searchTextLength).join('');
+    const searchQuery = `${searchText}${excludeOperator}`.trim();
+    const response = await axios.post('https://api.deepseek.com/v1/tools/search', {
+        query: searchQuery,
+        count: 8,
+        need_content: true,
+    }, {
+        timeout: 30000,
+        headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
     });
     return Array.isArray(response.data?.results) ? response.data.results : [];
+}
+
+async function fetchMissingContent(results, excludedDomain) {
+    if (!process.env.DEEPSEEK_API_KEY) throw new Error('Falta configurar DEEPSEEK_API_KEY para recuperar fuentes.');
+    const alreadyAvailable = new Set(results
+        .filter((item) => trim(item?.content, MAX_SOURCE_CHARS))
+        .map((item) => domain(item?.url)));
+    const attempted = new Set();
+    let fetches = 0;
+
+    for (let index = 0; index < results.length && fetches < MAX_FETCH_FALLBACKS; index += 1) {
+        const item = results[index];
+        const url = validUrl(item?.url);
+        const host = domain(url);
+        if (!url || !host || host === excludedDomain || alreadyAvailable.has(host) || attempted.has(host) ||
+            trim(item?.content, MAX_SOURCE_CHARS)) continue;
+
+        attempted.add(host);
+        fetches += 1;
+        try {
+            const response = await axios.post('https://api.deepseek.com/v1/tools/fetch', { url }, {
+                timeout: 30000,
+                headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
+            });
+            results[index] = {
+                ...item,
+                title: item.title || response.data?.title,
+                content: response.data?.content || '',
+            };
+        } catch {
+            // A page can reject Fetch even when Search returned a usable result.
+        }
+    }
+
+    return results;
 }
 
 function selectSources(results, excludedDomain) {
@@ -72,12 +112,12 @@ function selectSources(results, excludedDomain) {
     for (const item of results) {
         const url = validUrl(item?.url);
         const host = domain(url);
-        const content = trim([item?.content, item?.raw_content].filter(Boolean).join('\n'), MAX_SOURCE_CHARS);
+        const content = trim(item?.content, MAX_SOURCE_CHARS);
         if (!url || !host || host === excludedDomain || !content || urls.has(url) || domains.has(host)) continue;
         urls.add(url);
         domains.add(host);
         sources.push({ id: sources.length + 1, url, title: line(item.title || host, 150),
-            date: item.published_date || '', content });
+            date: item.date || '', content });
         if (sources.length === 4) break;
     }
     return sources;
@@ -176,7 +216,7 @@ export async function factCheckArticle({ idChat, article, locale, provider, mode
     };
     if (!idChat || !safeArticle.title || !safeArticle.content)
         throw new Error('Faltan el identificador, el titular o el contenido del artículo.');
-    if (!process.env.TAVILY_API_KEY) throw new Error('Falta configurar TAVILY_API_KEY.');
+    if (!process.env.DEEPSEEK_API_KEY) throw new Error('Falta configurar DEEPSEEK_API_KEY para la búsqueda web.');
     const claims = extractClaims(await requestSingleTurn(claimsPrompt(safeArticle), model, 1100, provider), safeArticle);
     if (!claims.length) {
         const report = String(locale || '').toLowerCase().startsWith('en')
@@ -195,7 +235,13 @@ export async function factCheckArticle({ idChat, article, locale, provider, mode
             explanation: english ? 'Not enough external sources were found.' : 'No se encontraron fuentes externas suficientes.',
             evidence: [] };
         try {
-            sources = selectSources(await searchClaim(claim.query, domain(safeArticle.sourceUrl)), domain(safeArticle.sourceUrl));
+            const excludedDomain = domain(safeArticle.sourceUrl);
+            let results = await searchClaim(claim.query, excludedDomain);
+            sources = selectSources(results, excludedDomain);
+            if (sources.length < 2) {
+                results = await fetchMissingContent(results, excludedDomain);
+                sources = selectSources(results, excludedDomain);
+            }
             if (sources.length >= 2) {
                 const reply = await requestSingleTurn(evidencePrompt(claim, safeArticle, sources, locale), model, 900, provider);
                 result = validateFinding(reply, sources, locale);
