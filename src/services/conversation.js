@@ -10,7 +10,7 @@ export function trimHistory(messages, maxMessages) {
   return [messages[0], ...messages.slice(-maxMessages)];
 }
 
-export function createConversationService({ ai, chatStore, limits, retention }) {
+export function createConversationService({ ai, chatStore, limits, retention, costs }) {
   return {
     /** Añade `prompt` a la conversación `chatId`, pide respuesta y devuelve el historial. */
     async reply({ chatId, installId, prompt }) {
@@ -33,8 +33,11 @@ export function createConversationService({ ai, chatStore, limits, retention }) 
       const cacheKey = isFirstMessage ? chatStore.cacheKey(ai.providerName, ai.model, prompt) : null;
       let reply = cacheKey ? chatStore.getCachedReply(cacheKey, retention.responseCacheTtlDays) : null;
 
-      if (!reply) {
-        reply = await ai.chat(trimHistory([...history, userMessage], limits.maxChatMessages));
+      if (reply) {
+        // Respuesta reutilizada: no cuesta tokens, pero se anota para ver el ahorro.
+        costs?.record({ installId, kind: 'prompt', provider: ai.providerName, model: ai.model, fromCache: true });
+      } else {
+        reply = await ai.chat(trimHistory([...history, userMessage], limits.maxChatMessages), undefined, { installId, kind: 'prompt' });
         if (cacheKey) chatStore.cacheReply(cacheKey, reply);
       }
 

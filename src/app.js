@@ -2,13 +2,15 @@ import express from 'express';
 import { HttpError } from './lib/httpError.js';
 import { installIdMiddleware } from './middleware/installId.js';
 import { rateLimitMiddleware, createUsageTracker } from './middleware/rateLimit.js';
+import { adminMiddleware } from './middleware/admin.js';
 import { factCheckArticle } from './services/factCheck.js';
+import { renderUsagePage } from './views/usagePage.js';
 
 /**
  * Crea la app de Express. Las dependencias se inyectan para poder probarla
  * sin llamar a proveedores reales.
  */
-export function createApp({ config, db, ai, chatStore, articles, conversation, factCheckJobs, runFactCheck = factCheckArticle }) {
+export function createApp({ config, db, ai, chatStore, articles, conversation, factCheckJobs, costs, runFactCheck = factCheckArticle }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 'loopback');
@@ -19,7 +21,16 @@ export function createApp({ config, db, ai, chatStore, articles, conversation, f
     res.json({ status: 'ok', provider: ai.providerName, model: ai.model });
   });
 
-  const usage = createUsageTracker(db);
+  // Consumo y coste de la IA. Va antes de X-Install-Id porque se abre desde el navegador.
+  const admin = adminMiddleware({ token: config.adminToken });
+  app.get('/admin', admin, (req, res) => {
+    const jsonHref = `/admin/usage.json${req.query.token ? `?token=${encodeURIComponent(req.query.token)}` : ''}`;
+    res.type('html').send(renderUsagePage(costs.report(), { jsonHref }));
+  });
+  app.get('/admin/usage.json', admin, (_req, res) => res.json(costs.report()));
+
+  const usage = createUsageTracker(db, { timeZone: config.timeZone });
+  const withinBudget = costs.budgetMiddleware();
   const rateLimit = rateLimitMiddleware({ perMinute: config.limits.requestsPerMinute });
   app.locals.stop = () => rateLimit.stop();
 
@@ -40,13 +51,13 @@ export function createApp({ config, db, ai, chatStore, articles, conversation, f
     res.json(await articles.get(req.body?.link));
   });
 
-  app.post('/prompt', usage.quota('prompt', config.limits.dailyQuota), async (req, res) => {
+  app.post('/prompt', withinBudget, usage.quota('prompt', config.limits.dailyQuota), async (req, res) => {
     const { prompt, idChat } = req.body || {};
     const chatHistory = await conversation.reply({ chatId: idChat, installId: req.installId, prompt });
     res.json({ chatHistory });
   });
 
-  app.post('/fact-check', usage.quota('factCheck', config.limits.factCheckDailyQuota), (req, res) => {
+  app.post('/fact-check', withinBudget, usage.quota('factCheck', config.limits.factCheckDailyQuota), (req, res) => {
     const { idChat, article, locale } = req.body || {};
     if (typeof idChat !== 'string' || !idChat || !article || typeof article !== 'object') {
       throw new HttpError(400, 'INVALID_REQUEST', 'Faltan idChat o article.');
@@ -68,6 +79,7 @@ export function createApp({ config, db, ai, chatStore, articles, conversation, f
         ai,
         chatStore,
         searchApiKey: config.ai.keys.deepseek,
+        costs,
       });
       console.log('[fact-check] job.completed', { durationMs: Date.now() - startedAt });
       return { chatHistory };

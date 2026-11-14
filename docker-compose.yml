@@ -8,6 +8,7 @@ services:
     environment:
       HOST: 0.0.0.0
       DB_PATH: /app/data/muchotexto.db
+      TIMEZONE: ${TIMEZONE:-Europe/Madrid}
     ports:
       # Solo accesible desde tu Mac. Cambia a "3000:3000" para abrirlo a la red local.
       - "127.0.0.1:3000:3000"

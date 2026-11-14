@@ -27,6 +27,24 @@ CREATE TABLE IF NOT EXISTS response_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_response_cache_created ON response_cache(created_at);
 
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at     INTEGER NOT NULL,
+  day            TEXT NOT NULL,
+  install_id     TEXT NOT NULL,
+  kind           TEXT NOT NULL,
+  provider       TEXT NOT NULL,
+  model          TEXT NOT NULL,
+  input_tokens   INTEGER NOT NULL DEFAULT 0,
+  cached_tokens  INTEGER NOT NULL DEFAULT 0,
+  output_tokens  INTEGER NOT NULL DEFAULT 0,
+  search_calls   INTEGER NOT NULL DEFAULT 0,
+  fetch_calls    INTEGER NOT NULL DEFAULT 0,
+  from_cache     INTEGER NOT NULL DEFAULT 0,
+  cost_usd       REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_day ON ai_usage(day);
+
 CREATE TABLE IF NOT EXISTS usage (
   install_id  TEXT NOT NULL,
   day         TEXT NOT NULL,

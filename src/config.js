@@ -12,6 +12,21 @@ function int(name, fallback) {
   return value;
 }
 
+function num(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`La variable ${name} debe ser un número positivo (valor actual: "${raw}").`);
+  }
+  return value;
+}
+
+/** Precios por defecto en USD por millón de tokens (comprobados en noviembre de 2026). */
+const DEFAULT_PRICES = {
+  'deepseek-v4-flash': { input: 0.14, cachedInput: 0.0028, output: 0.28 },
+};
+
 function bool(name, fallback) {
   const raw = process.env[name];
   if (raw === undefined || raw === '') return fallback;
@@ -19,7 +34,12 @@ function bool(name, fallback) {
 }
 
 export function loadConfig() {
+  const model = process.env.AI_MODEL || '';
+  const defaults = DEFAULT_PRICES[model || 'deepseek-v4-flash'] || { input: 0, cachedInput: 0, output: 0 };
+
   return Object.freeze({
+    // Zona horaria para los días y meses de cuotas y consumo.
+    timeZone: process.env.TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     port: int('PORT', 3000),
     // Por defecto solo escucha en esta máquina. Docker lo cambia a 0.0.0.0.
     host: process.env.HOST || process.env.IP || '127.0.0.1',
@@ -27,7 +47,7 @@ export function loadConfig() {
 
     ai: {
       provider: process.env.AI_PROVIDER || 'deepseek',
-      model: process.env.AI_MODEL || '',
+      model,
       // URL alternativa compatible con OpenAI (p. ej. Ollama: http://localhost:11434/v1/chat/completions).
       baseUrl: process.env.AI_BASE_URL || '',
       maxTokens: int('AI_MAX_TOKENS', 500),
@@ -38,6 +58,25 @@ export function loadConfig() {
         kimi: process.env.MOONSHOT_API_KEY || '',
       },
     },
+
+    pricing: {
+      // USD por millón de tokens. Si no se configuran, se usan los de DEFAULT_PRICES.
+      input: num('AI_PRICE_INPUT', defaults.input),
+      cachedInput: num('AI_PRICE_CACHED_INPUT', defaults.cachedInput),
+      output: num('AI_PRICE_OUTPUT', defaults.output),
+      // USD por petición a la búsqueda y lectura web de DeepSeek (análisis de evidencias).
+      searchCall: num('SEARCH_PRICE_PER_CALL', 0.00075),
+      fetchCall: num('FETCH_PRICE_PER_CALL', 0.00075),
+    },
+
+    budget: {
+      // Gasto máximo en USD (0 = sin límite). Al superarlo se rechazan peticiones nuevas.
+      dailyUsd: num('AI_DAILY_BUDGET_USD', 0),
+      monthlyUsd: num('AI_MONTHLY_BUDGET_USD', 0),
+    },
+
+    // Protege /admin. Sin token, solo se permite desde esta máquina o la red local.
+    adminToken: process.env.ADMIN_TOKEN || '',
 
     factCheck: {
       maxConcurrent: int('FACT_CHECK_MAX_CONCURRENT', 2),

@@ -6,10 +6,12 @@ import { createChatStore } from './services/chatStore.js';
 import { createArticleService } from './services/article.js';
 import { createConversationService } from './services/conversation.js';
 import { createJobQueue } from './services/jobQueue.js';
+import { createCostTracker } from './services/costTracker.js';
 
 const config = loadConfig();
 const db = openDatabase(config.dbPath);
-const ai = createAiClient(config.ai);
+const costs = createCostTracker(db, { pricing: config.pricing, budget: config.budget, timeZone: config.timeZone });
+const ai = createAiClient(config.ai, { onUsage: (usage) => costs.record(usage) });
 const chatStore = createChatStore(db);
 
 const app = createApp({
@@ -17,8 +19,9 @@ const app = createApp({
   db,
   ai,
   chatStore,
+  costs,
   articles: createArticleService(config.article),
-  conversation: createConversationService({ ai, chatStore, limits: config.limits, retention: config.retention }),
+  conversation: createConversationService({ ai, chatStore, costs, limits: config.limits, retention: config.retention }),
   factCheckJobs: createJobQueue({ maxConcurrent: config.factCheck.maxConcurrent, ttlMs: config.factCheck.jobTtlMs }),
 });
 
@@ -32,6 +35,7 @@ purgeTimer.unref();
 
 const server = app.listen(config.port, config.host, () => {
   console.log(`[startup] MuchoTexto API en http://${config.host}:${config.port} (${ai.providerName}/${ai.model})`);
+  console.log(`[startup] Consumo de la IA: http://localhost:${config.port}/admin`);
   if (!config.ai.keys[ai.providerName]) {
     console.warn(`[startup] Falta la API key de ${ai.providerName}: /prompt devolverá error hasta configurarla.`);
   }

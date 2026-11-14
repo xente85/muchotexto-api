@@ -50,7 +50,7 @@ Titular: ${article.title}
 <articulo>${article.content}</articulo>`;
 }
 
-async function searchClaim(query, excludedDomain, apiKey) {
+async function searchClaim(query, excludedDomain, apiKey, trackTool) {
     const requestedExcludeOperator = excludedDomain ? ` -site:${excludedDomain}` : '';
     const excludeOperator = requestedExcludeOperator.length < 128 ? requestedExcludeOperator : '';
     const searchTextLength = 128 - excludeOperator.length;
@@ -64,10 +64,12 @@ async function searchClaim(query, excludedDomain, apiKey) {
         timeout: 30000,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     });
-    return Array.isArray(response.data?.results) ? response.data.results : [];
+    const results = Array.isArray(response.data?.results) ? response.data.results : [];
+    if (results.length) trackTool?.('search');
+    return results;
 }
 
-async function fetchMissingContent(results, excludedDomain, apiKey) {
+async function fetchMissingContent(results, excludedDomain, apiKey, trackTool) {
     const alreadyAvailable = new Set(results
         .filter((item) => trim(item?.content, MAX_SOURCE_CHARS))
         .map((item) => domain(item?.url)));
@@ -88,6 +90,7 @@ async function fetchMissingContent(results, excludedDomain, apiKey) {
                 timeout: 30000,
                 headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
             });
+            if (response.data?.content) trackTool?.('fetch');
             results[index] = {
                 ...item,
                 title: item.title || response.data?.title,
@@ -208,8 +211,11 @@ export function renderReport(findings, locale) {
  * Dependencias: `ai` (createAiClient), `chatStore` (createChatStore) y la API key
  * de DeepSeek, que se usa para la búsqueda web aunque el proveedor de IA sea otro.
  */
-export async function factCheckArticle({ idChat, installId, article, locale, requestId, ai, chatStore, searchApiKey }) {
+export async function factCheckArticle({ idChat, installId, article, locale, requestId, ai, chatStore, searchApiKey, costs }) {
     const addChat = (chatId, message) => chatStore.addMessage(chatId, installId, message);
+    const meta = { installId, kind: 'factCheck' };
+    // Cada búsqueda o lectura web correcta se cobra por petición.
+    const trackTool = (tool) => costs?.record({ ...meta, provider: 'deepseek', model: `web-${tool}`, [tool]: 1 });
     const safeArticle = {
         title: trim(article?.title, 1000),
         content: trim(article?.textContent || article?.content, 30000),
@@ -219,7 +225,7 @@ export async function factCheckArticle({ idChat, installId, article, locale, req
     if (!idChat || !safeArticle.title || !safeArticle.content)
         throw new Error('Faltan el identificador, el titular o el contenido del artículo.');
     if (!searchApiKey) throw new Error('Falta configurar DEEPSEEK_API_KEY para la búsqueda web.');
-    const claims = extractClaims(await ai.ask(claimsPrompt(safeArticle), 1100), safeArticle);
+    const claims = extractClaims(await ai.ask(claimsPrompt(safeArticle), 1100, meta), safeArticle);
     if (!claims.length) {
         const report = String(locale || '').toLowerCase().startsWith('en')
             ? 'No specific, verifiable claims could be extracted from this article.'
@@ -238,14 +244,14 @@ export async function factCheckArticle({ idChat, installId, article, locale, req
             evidence: [] };
         try {
             const excludedDomain = domain(safeArticle.sourceUrl);
-            let results = await searchClaim(claim.query, excludedDomain, searchApiKey);
+            let results = await searchClaim(claim.query, excludedDomain, searchApiKey, trackTool);
             sources = selectSources(results, excludedDomain);
             if (sources.length < 2) {
-                results = await fetchMissingContent(results, excludedDomain, searchApiKey);
+                results = await fetchMissingContent(results, excludedDomain, searchApiKey, trackTool);
                 sources = selectSources(results, excludedDomain);
             }
             if (sources.length >= 2) {
-                const reply = await ai.ask(evidencePrompt(claim, safeArticle, sources, locale), 900);
+                const reply = await ai.ask(evidencePrompt(claim, safeArticle, sources, locale), 900, meta);
                 result = validateFinding(reply, sources, locale);
             }
         } catch (error) {

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { HttpError } from '../lib/httpError.js';
+import { readUsage } from './costTracker.js';
 
 export const PROVIDERS = {
   deepseek: {
@@ -28,9 +29,10 @@ function upstreamMessage(error, providerName) {
 
 /**
  * Cliente de chat-completions compatible con DeepSeek, Kimi y OpenAI.
- * `config` es la sección `ai` de loadConfig().
+ * `config` es la sección `ai` de loadConfig(). `onUsage` recibe los tokens de
+ * cada llamada (incluidos los reintentos) junto con `meta` ({ installId, kind }).
  */
-export function createAiClient(config) {
+export function createAiClient(config, { onUsage } = {}) {
   const providerName = config.provider;
   const provider = PROVIDERS[providerName];
   if (!provider) throw new Error(`Proveedor de IA no soportado: ${providerName}`);
@@ -39,7 +41,7 @@ export function createAiClient(config) {
   const model = config.model || provider.defaultModel;
   const url = config.baseUrl || provider.url;
 
-  async function complete(messages, maxTokens) {
+  async function complete(messages, maxTokens, meta) {
     if (!apiKey) {
       throw new HttpError(503, 'AI_NOT_CONFIGURED', `Falta configurar la API key del proveedor de IA (${providerName}).`);
     }
@@ -65,6 +67,12 @@ export function createAiClient(config) {
       throw new HttpError(502, 'AI_UPSTREAM_ERROR', upstreamMessage(error, providerName));
     }
 
+    try {
+      onUsage?.({ ...meta, provider: providerName, model, tokens: readUsage(response.data?.usage) });
+    } catch (error) {
+      console.error('[ai] usage.record.failed', { message: error?.message });
+    }
+
     const choice = response.data?.choices?.[0];
     return {
       reply: typeof choice?.message?.content === 'string' ? choice.message.content : '',
@@ -73,13 +81,13 @@ export function createAiClient(config) {
   }
 
   /** Pide una respuesta; si llega vacía o cortada, reintenta una vez con más tokens. */
-  async function chat(messages, maxTokens = config.maxTokens) {
-    let result = await complete(messages, maxTokens);
+  async function chat(messages, maxTokens = config.maxTokens, meta = {}) {
+    let result = await complete(messages, maxTokens, meta);
 
     if (!result.reply.trim() || result.finishReason === 'length') {
       const retryMaxTokens = Math.max(maxTokens * 2, 1000);
       console.warn('[ai] reply.retry', { provider: providerName, model, finishReason: result.finishReason, retryMaxTokens });
-      result = await complete(messages, retryMaxTokens);
+      result = await complete(messages, retryMaxTokens, meta);
     }
 
     if (!result.reply.trim()) {
@@ -96,8 +104,8 @@ export function createAiClient(config) {
     model,
     chat,
     /** Una pregunta sin historial. */
-    ask(prompt, maxTokens) {
-      return chat([{ role: 'user', content: prompt }], maxTokens);
+    ask(prompt, maxTokens, meta) {
+      return chat([{ role: 'user', content: prompt }], maxTokens, meta);
     },
   };
 }

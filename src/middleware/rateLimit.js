@@ -1,4 +1,5 @@
 import { HttpError } from '../lib/httpError.js';
+import { dayKey } from '../services/costTracker.js';
 
 /**
  * Límite de peticiones por minuto en memoria, por instalación y por IP.
@@ -41,11 +42,11 @@ export function rateLimitMiddleware({ perMinute, now = Date.now }) {
 }
 
 /** Cuota diaria por instalación guardada en SQLite. */
-export function createUsageTracker(db) {
+export function createUsageTracker(db, { timeZone = 'UTC' } = {}) {
   const increment = db.prepare(`INSERT INTO usage (install_id, day, kind, count) VALUES (?, ?, ?, 1)
     ON CONFLICT(install_id, day, kind) DO UPDATE SET count = count + 1 RETURNING count`);
   const decrement = db.prepare('UPDATE usage SET count = MAX(count - 1, 0) WHERE install_id = ? AND day = ? AND kind = ?');
-  const today = () => new Date().toISOString().slice(0, 10);
+  const today = () => dayKey(Date.now(), timeZone);
 
   return {
     /** Middleware que consume una unidad de la cuota `kind`. */
