@@ -1,0 +1,18 @@
+services:
+  api:
+    build: .
+    image: muchotexto-api
+    container_name: muchotexto-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      DB_PATH: /app/data/muchotexto.db
+    ports:
+      # Solo accesible desde tu Mac. Cambia a "3000:3000" para abrirlo a la red local.
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - muchotexto-data:/app/data
+
+volumes:
+  muchotexto-data:

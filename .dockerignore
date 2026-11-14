@@ -1,6 +1,11 @@
 node_modules
 npm-debug.log
-Dockerfile
-.dockerignore
+data
+chatHistory.json
+.env
 .git
 .gitignore
+Dockerfile
+docker-compose.yml
+.dockerignore
+test

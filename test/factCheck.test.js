@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFinding, renderReport } from './factCheck.js';
+import { validateFinding, renderReport } from '../src/services/factCheck.js';
 
 const sources = [
     { id: 1, url: 'https://example.org/one', content: 'El informe oficial confirma que la cifra fue de 120 casos.' },

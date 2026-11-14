@@ -1,33 +1,35 @@
 {
   "type": "module",
   "name": "muchotexto-api",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "2.0.0",
+  "private": true,
+  "description": "API de MuchoTexto: extracción de artículos, resúmenes, traducciones y análisis de evidencias con IA.",
+  "main": "src/server.js",
   "scripts": {
     "prestart": "node check-node-version.cjs",
-    "start": "node server.js",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "check": "node --check src/server.js && npm test",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f api",
     "nix": "nix-shell --run 'npm run start'"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/xente85/muchotexto-api.git"
   },
-  "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/xente85/muchotexto-api/issues"
-  },
-  "homepage": "https://github.com/xente85/muchotexto-api#readme",
   "dependencies": {
-    "@mozilla/readability": "^0.5.0",
-    "axios": "^1.7.3",
-    "cheerio": "^1.0.0",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "jsdom": "^24.1.1"
+    "@mozilla/readability": "^0.6.0",
+    "axios": "^1.13.0",
+    "better-sqlite3": "^12.0.0",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "jsdom": "^26.0.0"
   }
 }
