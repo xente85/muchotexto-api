@@ -146,16 +146,16 @@ export function selectSources(results, { excludedDomain = '', articleText = '', 
   }
 
   // Primero una fuente por grupo; las copias solo si sobra sitio.
-  const seenGroups = new Set();
+  // Una fuente por grupo y, si sobra sitio, como mucho una copia más de cada
+  // grupo (otra redacción de la misma nota puede traer la frase exacta).
+  const perGroup = new Map();
   const primary = [];
   const copies = [];
   for (const candidate of candidates) {
-    if (seenGroups.has(candidate.group)) {
-      copies.push(candidate);
-    } else {
-      seenGroups.add(candidate.group);
-      primary.push(candidate);
-    }
+    const count = perGroup.get(candidate.group) || 0;
+    perGroup.set(candidate.group, count + 1);
+    if (count === 0) primary.push(candidate);
+    else if (count === 1) copies.push(candidate);
   }
 
   return [...primary, ...copies].slice(0, MAX_SOURCES).map((c, index) => ({

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { containsQuote, sameQuote } from './evidence/text.js';
-import { domain, ownerOf, selectSources, MAX_SOURCES } from './evidence/sources.js';
+import { domain, ownerOf, siteOf, selectSources, MAX_SOURCES } from './evidence/sources.js';
 import { renderReport } from './evidence/report.js';
 
 export { renderReport };
@@ -62,6 +62,9 @@ Cómo redactar cada afirmación:
 - Fechas: incluye solo fechas concretas (día, mes, año). Las referencias vagas o aproximadas ("hace dos semanas", "estos días", "recientemente") se omiten del todo; no las conviertas en una fecha.
 - Sin calificativos ni valoraciones ("complementaria", "enorme", "polémica") que las fuentes no podrían confirmar.
 - Si el artículo atribuye el hecho a un tercero ("según la UCO", "declaró Aldama"), conserva esa atribución. Nunca escribas "según el artículo" ni menciones el propio periódico.
+- No incluyas opiniones o interpretaciones de terceros sobre el hecho ("que los investigadores consideran complementaria", "que el Gobierno califica de histórico"): quédate con el hecho.
+  Mal: "La Guardia Civil detuvo a X en una operación que los investigadores consideran complementaria hace dos semanas."
+  Bien: "La Guardia Civil detuvo a X en una operación del caso Y." 
 Para cada afirmación:
 - articleQuote: copia literalmente un fragmento de 15 a 300 caracteres del contenido que contenga la afirmación.
 - query: búsqueda web concreta con nombres, cifras y el contexto temporal.
@@ -143,7 +146,7 @@ Criterios:
 - Si la afirmación está atribuida ("según X"), juzga si las fuentes confirman que X dijo o documentó eso.
 - La relación de cada evidencia (supports/contradicts) se refiere al hecho central de la afirmación, no a detalles secundarios.
 - Usa contradicted solo si el hecho central es falso o si un dato preciso (cifra, fecha exacta, nombre) es claramente erróneo. Una aproximación coloquial razonable ("hace dos semanas" para 8 días, "casi 53 millones") no es una contradicción.
-- Usa partial cuando el hecho central está demostrado pero un detalle secundario no coincide exactamente o es impreciso; explica cuál.
+- Usa partial cuando el hecho central está demostrado pero un detalle secundario no coincide exactamente, es impreciso o no aparece en las fuentes (por ejemplo, una valoración atribuida a terceros); explica cuál.
 Para cada evidencia copia LITERALMENTE una frase del contenido de la fuente (de al menos 20 caracteres). Nunca inventes citas ni enlaces.
 Estados: supported (demostrada), partial (cierta en lo esencial, con un detalle secundario impreciso), contradicted (refutada), mixed (fuentes fiables que se contradicen sobre el hecho central), insufficient (sin evidencia directa suficiente).
 Devuelve SOLO JSON: {"status":"supported|partial|contradicted|mixed|insufficient","explanation":"una frase clara de máximo 160 caracteres con el dato decisivo y el nombre del medio u organismo que lo da (nunca números de fuente como [1])","evidence":[{"sourceId":1,"quote":"frase literal","relation":"supports|contradicts|context"}]}.
@@ -162,7 +165,7 @@ Contenido (pasajes relevantes): ${source.content}`).join('\n\n')}
 
 /** Cambia las referencias internas "[1]" o "fuente 1" por el dominio de la fuente. */
 function sourceNames(text, sources) {
-    const name = (id) => domain(sources.find((s) => s.id === Number(id))?.url || '') || null;
+    const name = (id) => siteOf(sources.find((s) => s.id === Number(id))?.url || '') || null;
     return text
         .replace(/\b[Ff]uentes?\s*\[(\d+)\](?:\s*y\s*\[(\d+)\])?/g, (m, a, b) => [name(a), b && name(b)].filter(Boolean).join(' y ') || m)
         .replace(/\[(\d+)\]/g, (m, id) => name(id) || m);

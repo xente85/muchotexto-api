@@ -172,3 +172,11 @@ test('las afirmaciones no llevan "según el artículo"', () => {
   }] }), article);
   assert.equal(claim.claim, 'La trama Koldo obtuvo contratos por valor de 53 millones durante la pandemia.');
 });
+
+test('como mucho una copia por grupo de notas de agencia', () => {
+  const wire = Array.from({ length: 12 }, (_, i) => `teletipo ${i} xq${i}zz palabra${i * 3} otra${i} texto${i * 7} final${i}`).join('\n');
+  const results = ['a', 'b', 'c', 'd'].map((x) => ({ url: `https://medio-${x}.com/n`, title: x, content: `Entradilla ${x}.\n${wire}` }));
+  results.push({ url: 'https://propio.com/n', title: 'p', content: Array.from({ length: 12 }, (_, i) => `propio ${i} yy${i}kk distinto${i * 5} cosa${i} mas${i * 2}`).join('\n') });
+  const sources = selectSources(results, { focus: 'teletipo' });
+  assert.equal(sources.length, 3, 'una de cada grupo + una copia del teletipo');
+});

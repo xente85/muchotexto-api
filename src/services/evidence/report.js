@@ -1,4 +1,4 @@
-import { domain } from './sources.js';
+import { siteOf } from './sources.js';
 
 const isEnglish = (locale) => String(locale || '').toLowerCase().startsWith('en');
 
@@ -72,7 +72,7 @@ export function renderReport(findings, locale) {
     const evidence = shownEvidence(result);
     const cited = [...new Set(evidence.map((e) => e.sourceId))].map((id) => sources.find((s) => s.id === id)).filter(Boolean);
     if (cited.length) {
-      lines.push(`${t.sources}: ${cited.slice(0, 3).map((s) => `[${domain(s.url)}](${s.url})`).join(' · ')}`);
+      lines.push(`${t.sources}: ${cited.slice(0, 3).map((s) => `[${siteOf(s.url)}](${s.url})`).join(' · ')}`);
     }
 
     const details = [`> ${t.article}: «${shorten(claim.articleQuote, 220)}»`];
@@ -80,7 +80,7 @@ export function renderReport(findings, locale) {
       const source = sources.find((s) => s.id === item.sourceId);
       if (!source) continue;
       const meta = [t.tier[source.tier], formatDate(source.date)].filter(Boolean).join(', ');
-      details.push(`> ${t.relation[item.relation]} · [${domain(source.url)}](${source.url})${meta ? ` (${meta})` : ''}: «${shorten(item.quote, 240)}»`);
+      details.push(`> ${t.relation[item.relation]} · [${siteOf(source.url)}](${source.url})${meta ? ` (${meta})` : ''}: «${shorten(item.quote, 240)}»`);
     }
     if (details.length > 1) lines.push(...details);
     return lines.join('\n');
