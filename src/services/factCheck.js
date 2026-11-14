@@ -26,6 +26,11 @@ function validUrl(url) {
     } catch { return ''; }
 }
 
+/** Afirmaciones que propuso la IA antes de validar sus citas (para diagnóstico). */
+function countProposed(reply) {
+    try { return Array.isArray(parseJson(reply).claims) ? parseJson(reply).claims.length : 0; } catch { return 0; }
+}
+
 export function extractClaims(reply, article) {
     let parsed;
     try { parsed = parseJson(reply); } catch { return []; }
@@ -205,15 +210,17 @@ export async function factCheckArticle({ idChat, installId, article, locale, req
         throw new Error('Faltan el identificador, el titular o el contenido del artículo.');
     if (!searchApiKey) throw new Error('Falta configurar DEEPSEEK_API_KEY para la búsqueda web.');
 
-    const claims = extractClaims(await ai.ask(claimsPrompt(safeArticle), 1300, meta), safeArticle);
+    const claimsReply = await ai.ask(claimsPrompt(safeArticle), 1300, meta);
+    const claims = extractClaims(claimsReply, safeArticle);
     if (!claims.length) {
+        console.warn(`[fact-check][${requestId}] claims.none`, { proposed: countProposed(claimsReply) });
         const report = english
             ? 'No specific, verifiable claims could be extracted from this article.'
             : 'No se pudieron identificar afirmaciones concretas y verificables en este artículo.';
         addChat(idChat, { role: 'user', content: 'Análisis de evidencias del artículo.' });
         return { chatHistory: addChat(idChat, { role: 'assistant', content: report }), findings: [] };
     }
-    console.log(`[fact-check][${requestId}] claims.extracted`, { count: claims.length });
+    console.log(`[fact-check][${requestId}] claims.extracted`, { count: claims.length, proposed: countProposed(claimsReply) });
 
     const excludedDomain = domain(safeArticle.sourceUrl);
     const findings = [];

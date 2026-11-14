@@ -4,6 +4,7 @@ import { Readability } from '@mozilla/readability';
 import { HttpError } from '../lib/httpError.js';
 import { LruCache } from '../lib/lruCache.js';
 import { parseHttpUrl, pointsToPrivateNetwork } from '../lib/safeUrl.js';
+import { decodeHtml } from '../lib/decodeHtml.js';
 
 const MAX_REDIRECTS = 5;
 // Códigos que hacen que la extensión lea el artículo desde una pestaña del navegador.
@@ -14,7 +15,7 @@ function isAntiBot(response) {
   if (!response || response.status !== 403) return false;
   const headers = response.headers || {};
   return headers['x-datadome'] === 'protected' || Boolean(headers['x-dd-b']) ||
-    String(response.data || '').includes('captcha-delivery.com');
+    decodeHtml(response.data || '').includes('captcha-delivery.com');
 }
 
 /** Texto plano con párrafos, sin espacios repetidos. Menos tokens que el HTML. */
@@ -84,7 +85,8 @@ export function createArticleService(config, { http = axios, resolveHost } = {})
             'User-Agent': 'Mozilla/5.0 (compatible; MuchoTexto/1.0)',
           },
           timeout: config.timeoutMs,
-          responseType: 'text',
+          // Bytes sin decodificar: la codificación se decide en decodeHtml().
+          responseType: 'arraybuffer',
           maxContentLength: config.maxBytes,
           maxRedirects: 0,
           validateStatus: () => true,
@@ -112,7 +114,7 @@ export function createArticleService(config, { http = axios, resolveHost } = {})
         const code = [401, 403, 429].includes(response.status) ? BROWSER_FALLBACK : 'ARTICLE_REQUEST_FAILED';
         throw new HttpError(code === BROWSER_FALLBACK ? 422 : 502, code, `No se pudo descargar el artículo (${response.status}).`);
       }
-      return { html: response.data, finalUrl: url };
+      return { html: decodeHtml(response.data, response.headers?.['content-type']), finalUrl: url };
     }
     throw new HttpError(502, 'ARTICLE_REQUEST_FAILED', 'El enlace tiene demasiadas redirecciones.');
   }

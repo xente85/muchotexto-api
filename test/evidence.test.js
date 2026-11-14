@@ -97,3 +97,11 @@ test('extractClaims acepta comillas cambiadas y guarda altQuery', () => {
   assert.equal(claims.length, 1);
   assert.equal(claims[0].altQuery, 'presupuesto municipal obra 2027');
 });
+
+test('las citas toleran tildes o comas cambiadas, pero no palabras distintas', () => {
+  const text = 'Su cita de 35 minutos en 2023 con el detenido Corvillo apunta al presidente.';
+  assert.ok(containsQuote(text, 'Su cita de 35 minutos en 2023, con el detenido Corvillo'));
+  assert.ok(containsQuote(text, 'su cita de 35 minutos en 2023 con el detenído Corvillo'));
+  assert.ok(!containsQuote(text, 'Su cita de 45 minutos en 2023 con el detenido Corvillo'));
+  assert.ok(!containsQuote(text, 'cita, de 35'), 'fragmentos cortos no valen en la comparación flexible');
+});

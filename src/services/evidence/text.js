@@ -15,9 +15,23 @@ export function normalizeForMatch(value) {
     .toLowerCase();
 }
 
+/** Solo letras y números, sin tildes: para la comparación de respaldo. */
+function looseForm(value) {
+  return normalizeForMatch(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9ñ]+/g, ' ').trim();
+}
+
+/**
+ * true si `quote` aparece en `haystack`. Primero compara el texto normalizado;
+ * si no coincide, repite ignorando tildes y signos de puntuación (la IA a veces
+ * cambia una coma o un acento al copiar), pero exige el mismo orden de palabras.
+ */
 export function containsQuote(haystack, quote) {
   const q = normalizeForMatch(quote).replace(/^["'(]+|["').,;:]+$/g, '');
-  return q.length > 0 && normalizeForMatch(haystack).includes(q);
+  if (!q) return false;
+  if (normalizeForMatch(haystack).includes(q)) return true;
+  const loose = looseForm(q);
+  return loose.length >= 15 && ` ${looseForm(haystack)} `.includes(` ${loose} `);
 }
 
 const STOPWORDS = new Set(`de la que el en y a los del se las por un para con no una su al lo como mas más pero sus le ya o

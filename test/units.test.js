@@ -70,3 +70,30 @@ test('rechaza enlaces no http', async () => {
   const svc = createArticleService({ cacheSize: 1, cacheTtlMs: 1 }, {});
   await assert.rejects(svc.get('file:///etc/passwd'), (e) => e.code === 'INVALID_LINK');
 });
+
+import { decodeHtml } from '../src/lib/decodeHtml.js';
+
+const latin1 = (text) => Buffer.from([...text].map((c) => c.charCodeAt(0)));
+
+test('decodeHtml respeta la codificación de la cabecera', () => {
+  assert.equal(decodeHtml(latin1('<p>Sánchez favoreció</p>'), 'text/html; charset=ISO-8859-15'), '<p>Sánchez favoreció</p>');
+});
+
+test('decodeHtml lee <meta charset> si la cabecera no lo dice', () => {
+  const html = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"></head><body>reactivación</body></html>';
+  assert.match(decodeHtml(latin1(html), 'text/html'), /reactivación/);
+});
+
+test('decodeHtml usa UTF-8 y, si los bytes no lo son, Windows-1252', () => {
+  assert.equal(decodeHtml(Buffer.from('<p>ñandú</p>', 'utf8'), 'text/html'), '<p>ñandú</p>');
+  assert.equal(decodeHtml(latin1('<p>año</p>'), ''), '<p>año</p>');
+});
+
+test('una web en ISO-8859-15 se extrae con tildes', async () => {
+  const html = `<html><head><meta charset="iso-8859-15"><title>Sánchez y la reactivación</title></head><body><article><h1>Sánchez</h1>${'<p>El presidente favoreció la reactivación según los investigadores de la Guardia Civil. </p>'.repeat(20)}</article></body></html>`;
+  const http = { get: async () => ({ status: 200, headers: { 'content-type': 'text/html' }, data: latin1(html) }) };
+  const svc = createArticleService({ timeoutMs: 1000, maxBytes: 1e6, cacheSize: 10, cacheTtlMs: 60_000, allowPrivateNetwork: false }, { http, resolveHost: publicDns });
+  const article = await svc.get('https://news.example/latin');
+  assert.match(article.title, /Sánchez y la reactivación/);
+  assert.match(article.content, /favoreció la reactivación/);
+});
