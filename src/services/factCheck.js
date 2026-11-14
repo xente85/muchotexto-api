@@ -12,6 +12,14 @@ const DEEPSEEK_TOOLS = 'https://api.deepseek.com/v1/tools';
 
 const trim = (value, max) => String(value || '').trim().slice(0, max);
 const line = (value, max = 450) => trim(value, max).replace(/[\r\n]+/g, ' ');
+
+/** Recorta en un límite de palabra y añade "…" si hace falta. */
+function sentence(value, max) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (text.length <= max) return text;
+    const cut = text.slice(0, max - 1);
+    return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max * 0.6)).replace(/[\s,;:]+$/, '')}…`;
+}
 const isEnglish = (locale) => String(locale || '').toLowerCase().startsWith('en');
 
 function parseJson(reply) {
@@ -146,7 +154,9 @@ Criterios:
 - Si la afirmación está atribuida ("según X"), juzga si las fuentes confirman que X dijo o documentó eso.
 - La relación de cada evidencia (supports/contradicts) se refiere al hecho central de la afirmación, no a detalles secundarios.
 - Usa contradicted solo si el hecho central es falso o si un dato preciso (cifra, fecha exacta, nombre) es claramente erróneo. Una aproximación coloquial razonable ("hace dos semanas" para 8 días, "casi 53 millones") no es una contradicción.
-- Usa partial cuando el hecho central está demostrado pero un detalle secundario no coincide exactamente, es impreciso o no aparece en las fuentes (por ejemplo, una valoración atribuida a terceros); explica cuál.
+- Si un detalle es compatible con lo que dicen las fuentes (agosto de 2018 es "poco después de junio de 2018"), la afirmación es supported, no partial.
+- Usa partial solo cuando el hecho central está demostrado pero un detalle secundario es incorrecto o no aparece en las fuentes (por ejemplo, una valoración atribuida a terceros); explica cuál.
+- Si usas insufficient, explica en una frase por qué (faltan fuentes, las fuentes no son concluyentes o se contradicen en fechas…).
 Para cada evidencia copia LITERALMENTE una frase del contenido de la fuente (de al menos 20 caracteres). Nunca inventes citas ni enlaces.
 Estados: supported (demostrada), partial (cierta en lo esencial, con un detalle secundario impreciso), contradicted (refutada), mixed (fuentes fiables que se contradicen sobre el hecho central), insufficient (sin evidencia directa suficiente).
 Devuelve SOLO JSON: {"status":"supported|partial|contradicted|mixed|insufficient","explanation":"una frase clara de máximo 160 caracteres con el dato decisivo y el nombre del medio u organismo que lo da (nunca números de fuente como [1])","evidence":[{"sourceId":1,"quote":"frase literal","relation":"supports|contradicts|context"}]}.
@@ -217,19 +227,39 @@ export function validateFinding(reply, sources, locale = 'es') {
     const independent = new Set(relevant.map(origin));
     const independentFor = (relation) => new Set(relevant.filter((i) => i.relation === relation).map(origin)).size;
 
-    if (status !== 'insufficient' && independent.size < 2) status = 'insufficient';
-    if (['supported', 'partial'].includes(status) && !independentFor('supports')) status = 'insufficient';
-    if (status === 'contradicted' && !independentFor('contradicts')) status = 'insufficient';
-    if (status === 'mixed' && (!independentFor('supports') || !independentFor('contradicts'))) status = 'insufficient';
+    const rawStatus = status;
+    let reason = '';
+    const downgrade = (why) => { status = 'insufficient'; reason = reason || why; };
+    const discarded = (Array.isArray(parsed?.evidence) ? parsed.evidence.length : 0) - evidence.length;
+
+    if (status !== 'insufficient' && independent.size < 2) downgrade(independent.size ? 'single' : (discarded > 0 ? 'quotes' : 'none'));
+    if (['supported', 'partial'].includes(status) && !independentFor('supports')) downgrade('none');
+    if (status === 'contradicted' && !independentFor('contradicts')) downgrade('none');
+    if (status === 'mixed' && (!independentFor('supports') || !independentFor('contradicts'))) downgrade('none');
     if (status === 'supported' && independentFor('contradicts')) status = 'mixed';
     if (status === 'contradicted' && independentFor('supports')) status = 'mixed';
+
+    const reasons = english ? {
+        single: 'Only one independent origin backs this up (other sources repeat the same text); at least two are required.',
+        quotes: 'The quotes offered as evidence could not be found in the sources.',
+        none: 'The available sources do not provide enough independent evidence to assess this claim.',
+    } : {
+        single: 'Solo un origen independiente lo respalda (las demás fuentes repiten el mismo texto); se exigen al menos dos.',
+        quotes: 'Las citas propuestas como evidencia no se encontraron en las fuentes.',
+        none: 'Las fuentes encontradas no permiten comprobar esta afirmación con suficiente respaldo independiente.',
+    };
+    // Si la propia IA concluyó "insufficient", su explicación dice por qué; si lo
+    // decidió la validación, se explica el motivo concreto.
+    const explanation = status === 'insufficient'
+        ? (rawStatus === 'insufficient' && parsed?.explanation
+            ? sourceNames(sentence(parsed.explanation, 240), sources)
+            : reasons[reason || 'none'])
+        : sourceNames(sentence(parsed.explanation, 240), sources);
+
     return {
         status,
-        explanation: status === 'insufficient'
-            ? (english
-                ? 'The available sources do not provide enough independent evidence to assess this claim.'
-                : 'Las fuentes encontradas no permiten comprobar esta afirmación con suficiente respaldo independiente.')
-            : sourceNames(line(parsed.explanation, 200), sources),
+        rawStatus,
+        explanation,
         evidence,
     };
 }

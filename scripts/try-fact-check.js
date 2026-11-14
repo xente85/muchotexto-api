@@ -85,7 +85,8 @@ findings.forEach(({ claim, sources, result }, i) => {
     const used = result.evidence.filter((e) => e.sourceId === s.id).map((e) => e.relation).join(',');
     console.log(`   [${s.id}] ${s.tier.padEnd(9)} grupo ${s.group}  ${s.url}${used ? `  ← ${used}` : ''}`);
   }
-  console.log(`   → ${bold(result.status)}: ${result.explanation}\n`);
+  const raw = result.rawStatus && result.rawStatus !== result.status ? dim(` (la IA dijo ${result.rawStatus})`) : '';
+  console.log(`   → ${bold(result.status)}${raw}: ${result.explanation}\n`);
 });
 
 console.log(bold('Informe que vería el usuario:\n'));

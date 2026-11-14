@@ -180,3 +180,39 @@ test('como mucho una copia por grupo de notas de agencia', () => {
   const sources = selectSources(results, { focus: 'teletipo' });
   assert.equal(sources.length, 3, 'una de cada grupo + una copia del teletipo');
 });
+
+test('insufficient explica el motivo', () => {
+  const sources = [
+    { id: 1, url: 'https://a.com/x', group: 1, content: 'El PSOE abrió un expediente de expulsión a Ábalos en febrero de 2024.' },
+    { id: 2, url: 'https://b.com/y', group: 2, content: 'Ábalos sigue perteneciendo al PSOE más de un año después.' },
+  ];
+  const byAi = validateFinding({ status: 'insufficient', explanation: 'Las fuentes no coinciden en si Ábalos llegó a ser expulsado ni cuándo.', evidence: [] }, sources);
+  assert.equal(byAi.explanation, 'Las fuentes no coinciden en si Ábalos llegó a ser expulsado ni cuándo.');
+
+  const single = validateFinding({ status: 'contradicted', explanation: 'x', evidence: [
+    { sourceId: 1, quote: 'El PSOE abrió un expediente de expulsión a Ábalos en febrero de 2024', relation: 'contradicts' },
+  ] }, sources);
+  assert.equal(single.status, 'insufficient');
+  assert.equal(single.rawStatus, 'contradicted');
+  assert.match(single.explanation, /Solo un origen independiente/);
+
+  const fake = validateFinding({ status: 'supported', explanation: 'x', evidence: [
+    { sourceId: 1, quote: 'Una cita inventada que no aparece en ninguna parte', relation: 'supports' },
+  ] }, sources);
+  assert.match(fake.explanation, /no se encontraron en las fuentes/);
+});
+
+test('las explicaciones largas se cortan en una palabra', () => {
+  const sources = [
+    { id: 1, url: 'https://a.com/x', group: 1, content: 'Aldama conoció a Koldo García en agosto de 2018 mediante su hermano.' },
+    { id: 2, url: 'https://b.com/y', group: 2, content: 'La UCO sitúa el primer encuentro el 31 de agosto de 2018.' },
+  ];
+  const long = `Aldama declaró que conoció a Koldo en agosto de 2018 ${'y lo confirman varias crónicas judiciales '.repeat(8)}cronología`;
+  const result = validateFinding({ status: 'supported', explanation: long, evidence: [
+    { sourceId: 1, quote: 'Aldama conoció a Koldo García en agosto de 2018', relation: 'supports' },
+    { sourceId: 2, quote: 'La UCO sitúa el primer encuentro el 31 de agosto de 2018', relation: 'supports' },
+  ] }, sources);
+  assert.ok(result.explanation.length <= 240);
+  assert.match(result.explanation, /\S…$/);
+  assert.doesNotMatch(result.explanation, /cron…$/);
+});
