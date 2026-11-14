@@ -139,3 +139,36 @@ test('la explicación nombra el medio en vez de [1]', () => {
   assert.equal(result.status, 'supported');
   assert.equal(result.explanation, 'ine.es y elpais.com dan el 11,2 %.');
 });
+
+test('partial: hecho central confirmado con un detalle impreciso', async () => {
+  const { renderReport } = await import('../src/services/factCheck.js');
+  const sources = [
+    { id: 1, url: 'https://www.rtve.es/a', group: 1, content: 'Han sido detenidos el que fuera chófer de Pedro Sánchez, Cristian Corvillo, y su hermano.' },
+    { id: 2, url: 'https://lavozdelsur.es/b', group: 2, content: 'La intervención se produjo el jueves 5 de noviembre dentro de una nueva pieza separada.' },
+  ];
+  const result = validateFinding({ status: 'partial', explanation: 'La detención fue el 5 de noviembre, 8 días antes y no dos semanas.', evidence: [
+    { sourceId: 1, quote: 'Han sido detenidos el que fuera chófer de Pedro Sánchez, Cristian Corvillo', relation: 'supports' },
+    { sourceId: 2, quote: 'La intervención se produjo el jueves 5 de noviembre', relation: 'supports' },
+  ] }, sources);
+  assert.equal(result.status, 'partial');
+  const report = renderReport([{ claim: { claim: 'La UCO detuvo a Cristian Corvillo', articleQuote: 'tras su detención hace dos semanas' }, result, sources }], 'es');
+  assert.match(report, /^\*\*Las afirmaciones revisadas coinciden con las fuentes en lo esencial, con algún matiz\.\*\*/);
+  assert.match(report, /\*\*1\. Coincide en lo esencial: La UCO detuvo a Cristian Corvillo\*\*/);
+});
+
+test('partial con una sola fuente no basta', () => {
+  const sources = [{ id: 1, url: 'https://www.rtve.es/a', group: 1, content: 'Han sido detenidos el que fuera chófer de Pedro Sánchez, Cristian Corvillo, y su hermano.' }];
+  const result = validateFinding({ status: 'partial', explanation: 'x', evidence: [
+    { sourceId: 1, quote: 'Han sido detenidos el que fuera chófer de Pedro Sánchez', relation: 'supports' },
+  ] }, sources);
+  assert.equal(result.status, 'insufficient');
+});
+
+test('las afirmaciones no llevan "según el artículo"', () => {
+  const article = { content: 'La trama consiguió contratos por valor de 53 millones durante la pandemia.' };
+  const [claim] = extractClaims(JSON.stringify({ claims: [{
+    claim: 'La trama Koldo obtuvo contratos por valor de 53 millones durante la pandemia, según el artículo publicado el 13 de noviembre.',
+    articleQuote: 'La trama consiguió contratos por valor de 53 millones', query: 'q',
+  }] }), article);
+  assert.equal(claim.claim, 'La trama Koldo obtuvo contratos por valor de 53 millones durante la pandemia.');
+});

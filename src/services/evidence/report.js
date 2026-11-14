@@ -4,7 +4,7 @@ const isEnglish = (locale) => String(locale || '').toLowerCase().startsWith('en'
 
 const TEXT = {
   es: {
-    labels: { supported: 'Coincide con las fuentes', contradicted: 'No coincide', mixed: 'Las fuentes discrepan', insufficient: 'No comprobado' },
+    labels: { supported: 'Coincide con las fuentes', partial: 'Coincide en lo esencial', contradicted: 'No coincide', mixed: 'Las fuentes discrepan', insufficient: 'No comprobado' },
     relation: { supports: '✓ Respalda', contradicts: '✗ Contradice' },
     tier: { factcheck: 'verificador', official: 'fuente oficial', reference: 'referencia', media: '' },
     article: 'En el artículo',
@@ -12,11 +12,12 @@ const TEXT = {
     contradicted: 'Al menos una afirmación no coincide con las fuentes.',
     mixed: 'Las fuentes discrepan sobre una afirmación.',
     insufficient: 'Faltan datos para comprobar todas las afirmaciones.',
+    partial: 'Las afirmaciones revisadas coinciden con las fuentes en lo esencial, con algún matiz.',
     supported: 'Las afirmaciones revisadas coinciden con las fuentes encontradas.',
     footer: 'Análisis automático de algunas afirmaciones, no una calificación de todo el artículo. Revisa las fuentes antes de sacar conclusiones.',
   },
   en: {
-    labels: { supported: 'Matches the sources', contradicted: 'Does not match', mixed: 'Sources disagree', insufficient: 'Not verified' },
+    labels: { supported: 'Matches the sources', partial: 'Mostly accurate', contradicted: 'Does not match', mixed: 'Sources disagree', insufficient: 'Not verified' },
     relation: { supports: '✓ Supports', contradicts: '✗ Contradicts' },
     tier: { factcheck: 'fact-checker', official: 'official source', reference: 'reference', media: '' },
     article: 'In the article',
@@ -24,6 +25,7 @@ const TEXT = {
     contradicted: 'At least one claim does not match the sources.',
     mixed: 'The sources disagree on at least one claim.',
     insufficient: 'There is not enough evidence to check every claim.',
+    partial: 'The reviewed claims are mostly accurate, with some nuances.',
     supported: 'The reviewed claims match the sources found.',
     footer: 'Automated review of selected claims, not a rating of the whole article. Check the sources before drawing conclusions.',
   },
@@ -62,7 +64,8 @@ function shownEvidence(result) {
 export function renderReport(findings, locale) {
   const t = TEXT[isEnglish(locale) ? 'en' : 'es'];
   const has = (status) => findings.some((f) => f.result.status === status);
-  const takeaway = has('contradicted') ? t.contradicted : has('mixed') ? t.mixed : has('insufficient') ? t.insufficient : t.supported;
+  const takeaway = has('contradicted') ? t.contradicted : has('mixed') ? t.mixed
+    : has('insufficient') ? t.insufficient : has('partial') ? t.partial : t.supported;
 
   const blocks = findings.map(({ claim, result, sources }, index) => {
     const lines = [`**${index + 1}. ${t.labels[result.status]}: ${claim.claim}**`, result.explanation];
