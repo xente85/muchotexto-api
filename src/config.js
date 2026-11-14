@@ -50,6 +50,8 @@ export function loadConfig() {
       model,
       // URL alternativa compatible con OpenAI (p. ej. Ollama: http://localhost:11434/v1/chat/completions).
       baseUrl: process.env.AI_BASE_URL || '',
+      // Búsqueda y lectura web del análisis de evidencias (DeepSeek Search/Fetch).
+      toolsUrl: process.env.DEEPSEEK_TOOLS_URL || 'https://api.deepseek.com/v1/tools',
       maxTokens: int('AI_MAX_TOKENS', 500),
       timeoutMs: int('AI_TIMEOUT_MS', 60_000),
       keys: {

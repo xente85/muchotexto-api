@@ -41,7 +41,7 @@ test('conserva evidencia contradictoria en el estado mixto', () => {
     assert.equal(result.status, 'mixed');
 });
 
-test('el informe breve conserva resultados y fuentes sin volcar citas', () => {
+test('el informe incluye veredicto, enlaces y evidencias desplegables', () => {
     const result = validateFinding({
         status: 'mixed', explanation: 'Dos informes dan cifras distintas.',
         evidence: [
@@ -50,13 +50,20 @@ test('el informe breve conserva resultados y fuentes sin volcar citas', () => {
         ],
     }, sources);
     const report = renderReport([{
-        claim: { claim: 'Se registraron 120 casos.', articleQuote: 'Un largo fragmento del artículo original.' },
-        result, sources,
+        claim: { claim: 'Se registraron 120 casos.', articleQuote: 'Según el artículo se registraron 120 casos.' },
+        result, sources: sources.map((s, i) => ({ ...s, tier: i === 0 ? 'official' : 'media', date: '2026-11-02T10:00:00Z' })),
     }], 'es');
-    assert.match(report, /Las fuentes discrepan sobre una afirmación/);
-    assert.match(report, /Las fuentes discrepan/);
-    assert.match(report, /example\.org/);
-    assert.match(report, /another\.org/);
-    assert.doesNotMatch(report, /Un largo fragmento/);
-    assert.doesNotMatch(report, /El informe oficial confirma/);
+    assert.match(report, /^\*\*Las fuentes discrepan sobre una afirmación\.\*\*/);
+    assert.match(report, /\*\*1\. Las fuentes discrepan: Se registraron 120 casos\.\*\*/);
+    assert.match(report, /Fuentes: \[example\.org\]\(https:\/\/example\.org\/one\) · \[another\.org\]/);
+    assert.match(report, /^> En el artículo: «Según el artículo se registraron 120 casos\.»$/m);
+    assert.match(report, /^> ✓ Respalda · \[example\.org\]\(https:\/\/example\.org\/one\) \(fuente oficial, 2026-11-02\): «El informe oficial/m);
+    assert.match(report, /^> ✗ Contradice · \[another\.org\]/m);
+});
+
+test('el informe en inglés', () => {
+    const report = renderReport([{ claim: { claim: 'X', articleQuote: 'Una cita del artículo suficientemente larga.' },
+        result: { status: 'insufficient', explanation: 'n/a', evidence: [] }, sources: [] }], 'en-US');
+    assert.match(report, /\*\*1\. Not verified: X\*\*/);
+    assert.doesNotMatch(report, /^> /m, 'sin evidencias no hay bloque desplegable');
 });

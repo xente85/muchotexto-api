@@ -14,7 +14,9 @@
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f api",
-    "nix": "nix-shell --run 'npm run start'"
+    "nix": "nix-shell --run 'npm run start'",
+    "try:fact-check": "node scripts/try-fact-check.js",
+    "docker:try": "docker compose exec api node scripts/try-fact-check.js"
   },
   "engines": {
     "node": ">=20"

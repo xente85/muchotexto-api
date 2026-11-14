@@ -79,6 +79,7 @@ export function createApp({ config, db, ai, chatStore, articles, conversation, f
         ai,
         chatStore,
         searchApiKey: config.ai.keys.deepseek,
+        toolsUrl: config.ai.toolsUrl,
         costs,
       });
       console.log('[fact-check] job.completed', { durationMs: Date.now() - startedAt });
