@@ -83,8 +83,8 @@ test('dos medios con la misma nota de agencia no bastan para concluir', () => {
   ] }, sources);
   assert.equal(result.status, 'insufficient');
   const independent = validateFinding({ status: 'supported', explanation: 'ok', evidence: [
-    { sourceId: 1, quote, relation: 'supports' }, { sourceId: 2, quote, relation: 'supports' },
-  ] }, [sources[0], { ...sources[1], group: 2 }]);
+    { sourceId: 1, quote, relation: 'supports' }, { sourceId: 2, quote: 'El Ayuntamiento cifra la obra del puente en 12 millones', relation: 'supports' },
+  ] }, [sources[0], { ...sources[1], group: 2, content: 'El Ayuntamiento cifra la obra del puente en 12 millones de euros.' }]);
   assert.equal(independent.status, 'supported');
 });
 
@@ -104,4 +104,38 @@ test('las citas toleran tildes o comas cambiadas, pero no palabras distintas', (
   assert.ok(containsQuote(text, 'su cita de 35 minutos en 2023 con el detenído Corvillo'));
   assert.ok(!containsQuote(text, 'Su cita de 45 minutos en 2023 con el detenido Corvillo'));
   assert.ok(!containsQuote(text, 'cita, de 35'), 'fragmentos cortos no valen en la comparación flexible');
+});
+
+test('la misma frase larga en dos webs cuenta como un solo origen', () => {
+  const wire = 'Aldama declaró ante el juez sobre sus primeros contactos con Koldo y Ábalos a partir de junio de 2018';
+  const sources = [
+    { id: 1, url: 'https://elboletin.com/a', group: 1, content: `${wire}.` },
+    { id: 2, url: 'https://otro-medio.com/b', group: 2, content: `Según la agencia, ${wire}.` },
+  ];
+  const result = validateFinding({ status: 'supported', explanation: 'Fuentes [1] y [2] lo confirman.', evidence: [
+    { sourceId: 1, quote: wire, relation: 'supports' }, { sourceId: 2, quote: wire, relation: 'supports' },
+  ] }, sources);
+  assert.equal(result.status, 'insufficient');
+});
+
+test('webs hermanas y subdominios cuentan como la misma organización', async () => {
+  const { ownerOf, siteOf, cleanUrl } = await import('../src/services/evidence/sources.js');
+  assert.equal(siteOf('https://pre.efe.com/x'), 'efe.com');
+  assert.equal(siteOf('https://www.sanidad.gob.es/x'), 'sanidad.gob.es');
+  assert.equal(ownerOf('https://www.notimerica.com/x'), ownerOf('https://www.europapress.es/y'));
+  assert.notEqual(ownerOf('https://elpais.com/x'), ownerOf('https://elmundo.es/y'));
+  assert.equal(cleanUrl('https://a.com/n?rand=298&id=4&utm_source=x#elementor-action'), 'https://a.com/n?id=4');
+});
+
+test('la explicación nombra el medio en vez de [1]', () => {
+  const sources = [
+    { id: 1, url: 'https://www.ine.es/a', group: 1, content: 'El INE cifra el paro en el 11,2 % del tercer trimestre.' },
+    { id: 2, url: 'https://elpais.com/b', group: 2, content: 'La EPA sitúa la tasa de desempleo en el 11,2 %.' },
+  ];
+  const result = validateFinding({ status: 'supported', explanation: 'Fuentes [1] y [2] dan el 11,2 %.', evidence: [
+    { sourceId: 1, quote: 'El INE cifra el paro en el 11,2 % del tercer trimestre', relation: 'supports' },
+    { sourceId: 2, quote: 'La EPA sitúa la tasa de desempleo en el 11,2 %', relation: 'supports' },
+  ] }, sources);
+  assert.equal(result.status, 'supported');
+  assert.equal(result.explanation, 'ine.es y elpais.com dan el 11,2 %.');
 });

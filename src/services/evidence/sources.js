@@ -34,6 +34,46 @@ export function domain(url) {
   try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; }
 }
 
+// Sufijos bajo los que cada subdominio es una organización distinta (lista corta del Public Suffix List).
+const PUBLIC_SUFFIXES = new Set([
+  'gob.es', 'com.es', 'org.es', 'nom.es', 'edu.es', 'co.uk', 'org.uk', 'gov.uk', 'ac.uk',
+  'com.mx', 'gob.mx', 'com.ar', 'gob.ar', 'com.br', 'gov.br', 'com.co', 'gov.co', 'gob.pe', 'com.pe', 'gob.cl',
+]);
+
+// Webs hermanas que publican los mismos teletipos: cuentan como un solo origen.
+const SAME_ORIGIN = {
+  'europapress.es': 'europapress', 'europapress.tv': 'europapress', 'europapress.cat': 'europapress',
+  'notimerica.com': 'europapress', 'infosalus.com': 'europapress', 'europapress.pt': 'europapress',
+  'efe.com': 'efe', 'efeverde.com': 'efe', 'efesalud.com': 'efe', 'efeagro.com': 'efe', 'efeminista.com': 'efe',
+};
+
+/** Dominio registrable: pre.efe.com → efe.com, sanidad.gob.es → sanidad.gob.es. */
+export function siteOf(url) {
+  const labels = domain(url).split('.').filter(Boolean);
+  if (labels.length <= 2) return labels.join('.');
+  const lastTwo = labels.slice(-2).join('.');
+  return PUBLIC_SUFFIXES.has(lastTwo) ? labels.slice(-3).join('.') : lastTwo;
+}
+
+/** Organización que hay detrás de una web (agencias con varias webs → una). */
+export function ownerOf(url) {
+  const site = siteOf(url);
+  return SAME_ORIGIN[site] || site;
+}
+
+const TRACKING_PARAMS = /^(utm_\w+|rand|fbclid|gclid|mc_cid|mc_eid|ocid|ref|cmpid|int|s)$/i;
+
+/** URL sin fragmento (#…) ni parámetros de seguimiento. */
+export function cleanUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (!['https:', 'http:'].includes(parsed.protocol)) return '';
+    parsed.hash = '';
+    for (const key of [...parsed.searchParams.keys()]) if (TRACKING_PARAMS.test(key)) parsed.searchParams.delete(key);
+    return parsed.href;
+  } catch { return ''; }
+}
+
 function matchesHost(host, entry) {
   return host === entry || host.endsWith(`.${entry}`);
 }
@@ -56,13 +96,6 @@ export function sourceTier(url) {
   return 'media';
 }
 
-function validUrl(url) {
-  try {
-    const parsed = new URL(url);
-    return ['https:', 'http:'].includes(parsed.protocol) ? parsed.href : '';
-  } catch { return ''; }
-}
-
 /**
  * Elige hasta MAX_SOURCES fuentes para una afirmación:
  * - descarta el propio medio, redes sociales y páginas que copian el artículo;
@@ -74,15 +107,17 @@ function validUrl(url) {
 export function selectSources(results, { excludedDomain = '', articleText = '', focus = '' } = {}) {
   const articleShingles = shingles(articleText);
   const seenUrls = new Set();
-  const seenDomains = new Set();
+  const seenOwners = new Set();
+  const excludedOwner = excludedDomain ? ownerOf(`https://${excludedDomain}/`) : '';
   const candidates = [];
 
   results.forEach((item, rank) => {
-    const url = validUrl(item?.url);
+    const url = cleanUrl(item?.url);
     const host = domain(url);
+    const owner = ownerOf(url);
     const content = String(item?.content || '').trim();
     if (!url || !host || !content || content.length < 200) return;
-    if (host === excludedDomain || seenUrls.has(url) || seenDomains.has(host)) return;
+    if (owner === excludedOwner || seenUrls.has(url) || seenOwners.has(owner)) return;
     const tier = sourceTier(url);
     if (tier === 'ugc') return;
     const fingerprint = shingles(content);
@@ -90,7 +125,7 @@ export function selectSources(results, { excludedDomain = '', articleText = '', 
     // de la fuente está en el artículo: citar una frase del artículo no la descarta.
     if (fingerprint.size >= MIN_SHINGLES && coverage(fingerprint, articleShingles) > 0.5) return;
     seenUrls.add(url);
-    seenDomains.add(host);
+    seenOwners.add(owner);
     candidates.push({ url, host, tier, rank, item, content, fingerprint });
   });
 

@@ -16,7 +16,7 @@ export function normalizeForMatch(value) {
 }
 
 /** Solo letras y números, sin tildes: para la comparación de respaldo. */
-function looseForm(value) {
+export function looseForm(value) {
   return normalizeForMatch(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9ñ]+/g, ' ').trim();
 }
@@ -75,4 +75,22 @@ export function containment(a, b) {
   let shared = 0;
   for (const item of small) if (big.has(item)) shared += 1;
   return shared / small.size;
+}
+
+/**
+ * true si dos citas parecen el mismo texto copiado (mismo teletipo con
+ * retoques mínimos). Frases cortas iguales no cuentan: dos medios pueden
+ * redactar igual un dato ("la tasa de paro fue del 11,2 %").
+ */
+export function sameQuote(a, b) {
+  const x = looseForm(a).split(' ').filter(Boolean);
+  const y = looseForm(b).split(' ').filter(Boolean);
+  const shorter = Math.min(x.length, y.length);
+  if (x.join(' ') === y.join(' ')) return shorter >= 8;
+  if (shorter < 15) return false;
+  const wa = new Set(x);
+  const wb = new Set(y);
+  let shared = 0;
+  for (const w of wa) if (wb.has(w)) shared += 1;
+  return shared / Math.min(wa.size, wb.size) >= 0.9;
 }

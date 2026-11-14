@@ -39,9 +39,16 @@ function formatDate(value) {
   return match ? match[0] : '';
 }
 
-/** Evidencias que se muestran: en "mixed", primero una de cada lado. */
+/** Evidencias que se muestran: una por origen y, en "mixed", primero una de cada lado. */
 function shownEvidence(result) {
-  const relevant = result.evidence.filter((item) => item.relation !== 'context');
+  const seen = new Set();
+  const relevant = result.evidence.filter((item) => {
+    if (item.relation === 'context') return false;
+    const key = `${item.origin || item.sourceId}:${item.relation}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   if (result.status !== 'mixed') return relevant.slice(0, 3);
   const first = [relevant.find((i) => i.relation === 'supports'), relevant.find((i) => i.relation === 'contradicts')].filter(Boolean);
   return [...first, ...relevant.filter((i) => !first.includes(i))].slice(0, 3);
