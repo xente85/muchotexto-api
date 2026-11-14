@@ -13,9 +13,11 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DB_PATH=/app/data/muchotexto.db
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY package*.json check-node-version.cjs ./
-COPY src ./src
+# --chown: el usuario node tiene que poder leer el código aunque en el
+# ordenador los archivos tengan permisos restrictivos (p. ej. 600).
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node package*.json check-node-version.cjs ./
+COPY --chown=node:node src ./src
 RUN mkdir -p /app/data && chown -R node:node /app/data
 USER node
 EXPOSE 3000
